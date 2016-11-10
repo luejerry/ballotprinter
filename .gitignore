@@ -1,0 +1,13 @@
+# Windows indexing files
+Thumbs.db
+
+# Mac indexing files
+.DS_Store
+
+# IntelliJ files
+./idea/workspace.xml
+./idea/tasks.xml
+out/
+
+# Gradle cache
+./gradle/
