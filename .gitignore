@@ -9,5 +9,6 @@ Thumbs.db
 ./idea/tasks.xml
 out/
 
-# Gradle cache
-./gradle/
+# Gradle
+.gradle/
+build/
