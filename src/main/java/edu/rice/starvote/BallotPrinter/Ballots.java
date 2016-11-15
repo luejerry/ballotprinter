@@ -66,13 +66,14 @@ public class Ballots {
         return ballotPage;
     }
 
-    public static Pair<BorderPane, Queue<RaceContainer>> createBallot(double width,
+    public static Pair<BallotPage, Queue<RaceContainer>> createBallot(double width,
                                                                       double height,
                                                                       int columns,
                                                                       Pane header,
                                                                       Pane footer,
                                                                       Collection<RaceContainer> raceList) {
         final BallotPage ballotPage = new BallotPage(width, height, header, footer, columns);
+        ballotPage.setStyle("-fx-background-color: white");
         final Queue<RaceContainer> remaining = ballotPage.addRaces(raceList);
         return new Pair<>(ballotPage, remaining);
 

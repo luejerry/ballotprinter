@@ -10,12 +10,12 @@ import javafx.stage.Stage;
  */
 public class MainWindow extends Application {
 
-    private PrinterWindow printerWindow;
+    private PrinterPane printerPane;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        printerWindow = new PrinterWindow();
-        final Pane window = printerWindow.getWindow();
+        printerPane = new PrinterPane();
+        final Pane window = printerPane.getPane();
         final Scene scene = new Scene(window);
         primaryStage.setScene(scene);
         primaryStage.setTitle("Print test");
@@ -25,6 +25,6 @@ public class MainWindow extends Application {
     @Override
     public void stop() throws Exception {
         super.stop();
-        printerWindow.shutdown();
+        printerPane.shutdown();
     }
 }

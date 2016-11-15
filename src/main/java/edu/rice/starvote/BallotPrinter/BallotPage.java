@@ -37,9 +37,9 @@ public class BallotPage extends BorderPane {
     }
 
     public Queue<RaceContainer> addRaces(Collection<RaceContainer> races) {
-        final RacePane racePane = new RacePane(columns);
         final Pair<Double, Double> widthHeight = calculateCenterSize();
-        racePane.setPrefSize(widthHeight.getKey(), widthHeight.getValue());
+        final RacePane racePane = new RacePane(columns, widthHeight.getKey(), widthHeight.getValue());
+//        racePane.setPrefSize(widthHeight.getKey(), widthHeight.getValue());
         setCenter(racePane);
         return racePane.addRaces(races);
     }

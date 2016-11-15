@@ -28,4 +28,6 @@ public class BallotParser {
                         new RaceContainer(raceData.RACE, raceData.IDENTIFIER, raceData.GROUP))
                 .collect(Collectors.toList());
     }
+
+
 }

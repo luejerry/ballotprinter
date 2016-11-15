@@ -10,18 +10,20 @@ import javafx.event.ActionEvent;
 import javafx.print.*;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.ListView;
-import javafx.scene.control.TextArea;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Pane;
+import javafx.scene.layout.*;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Pair;
 
-import java.util.List;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -30,7 +32,7 @@ import java.util.stream.Collectors;
 /**
  * Created by cyricc on 11/9/2016.
  */
-public class PrinterWindow {
+public class PrinterPane {
 
     private ObservableList<Printer> printerlist;
     private StringProperty printerInfo = new SimpleStringProperty();
@@ -38,8 +40,9 @@ public class PrinterWindow {
     private double printableX;
     private double printableY;
     private final GridPane window = new GridPane();
+    private List<BallotPage> ballotPages = new LinkedList<>();
 
-    public PrinterWindow() {
+    public PrinterPane() {
         final ObservableSet<Printer> allPrinters = Printer.getAllPrinters();
         final List<Printer> printers = allPrinters.stream().collect(Collectors.toList());
         printerlist = FXCollections.observableList(printers);
@@ -52,14 +55,36 @@ public class PrinterWindow {
         final Button dimButton = new Button("Dimensions");
         final Button ballotButton = new Button("Show Ballot");
         final TextArea textArea = new TextArea();
+        final LoaderDialog loaderDialog = new LoaderDialog(new LoaderPane());
 
         printButton.setDisable(true);
         dimButton.setDisable(true);
         ballotButton.setDisable(true);
 
         printButton.addEventHandler(ActionEvent.ACTION, event -> {
-            final BorderPane ballot = generateBallot();
+            final BallotPage ballot = ballotPages.get(0);
             print(ballot, printerListView.getSelectionModel().getSelectedItem(), null);
+        });
+        dimButton.addEventHandler(ActionEvent.ACTION, event -> {
+            final Optional<LoaderPane.Selections> oSelection = loaderDialog.getDialog().showAndWait();
+            oSelection.ifPresent(selection -> {
+                System.out.println(selection.title);
+                System.out.println(selection.subtitle);
+                System.out.println(selection.instructions);
+                System.out.println(selection.barcodePath);
+                System.out.println(selection.jsonPath);
+                ballotPages.clear();
+                try {
+                    ballotPages = generateBallot(selection);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    final Dialog errorDialog = new Dialog();
+                    errorDialog.setContentText("Error loading chosen file!");
+                    errorDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK);
+                    errorDialog.show();
+                }
+            });
+
         });
         ballotButton.addEventHandler(ActionEvent.ACTION, event -> {
             showBallot();
@@ -93,7 +118,7 @@ public class PrinterWindow {
         window.getChildren().addAll(printerListView, printButton, dimButton, ballotButton, textArea);
     }
 
-    public Pane getWindow() {
+    public Pane getPane() {
         return window;
     }
 
@@ -135,19 +160,57 @@ public class PrinterWindow {
     }
 
     public void showBallot() {
-        final BorderPane testBallot = generateBallot();
-        final Scene scene = new Scene(testBallot);
+//        final BorderPane testBallot = generateBallot();
+        final BallotWindow ballotWindow = new BallotWindow(ballotPages);
+        final Scene scene = new Scene(ballotWindow.getPane());
         final Stage stage = new Stage();
         stage.setScene(scene);
         stage.initModality(Modality.APPLICATION_MODAL);
+        stage.setTitle("Ballot Preview");
         stage.showAndWait();
+        scene.setRoot(new Region());
     }
 
     private BorderPane generateBallot() {
-        final HBox header = Ballots.createHeader("Official Ballot", "November 8, 2016, General Election\nHarris County, Texas Precinct 361", "Place this in ballot box", new Image("file:testcode.bmp"));
+        final HBox header = Ballots.createHeader("Official Ballot",
+                "November 8, 2016, General Election\nHarris County, Texas Precinct 361",
+                "Place this in ballot box",
+                new Image("file:testcode.bmp"));
         final HBox footer = Ballots.createFooter(new Image("file:testcode.bmp"));
         final BorderPane testBallot = Ballots.createTestBallot(printableX, printableY, header, footer);
         testBallot.setStyle("-fx-background-color: white");
         return testBallot;
     }
+
+    private List<BallotPage> generateBallot(LoaderPane.Selections selection) throws IOException {
+        final HBox header = Ballots.createHeader(selection.title,
+                selection.subtitle,
+                selection.instructions,
+                new Image("file:" + selection.barcodePath));
+        final HBox footer = Ballots.createFooter(new Image("file:" + selection.barcodePath));
+        final Path jsonPath = Paths.get(selection.jsonPath);
+        final BufferedReader jsonReader = Files.newBufferedReader(jsonPath);
+        final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(jsonReader));
+
+        Pair<BallotPage, Queue<RaceContainer>> ballotRemain = Ballots.createBallot(printableX, printableY, 3, header, footer, raceContainers);
+        final List<BallotPage> ballotList = new LinkedList<>();
+
+        ballotList.add(ballotRemain.getKey());
+        System.out.println("Page generated");
+
+        while (!ballotRemain.getValue().isEmpty()) {
+            final HBox nextHeader = Ballots.createHeader(selection.title,
+                    selection.subtitle,
+                    selection.instructions,
+                    new Image("file:" + selection.barcodePath));
+            final HBox nextFooter = Ballots.createFooter(new Image("file:" + selection.barcodePath));
+            ballotRemain = Ballots.createBallot(printableX, printableY, 3, nextHeader, nextFooter, ballotRemain.getValue());
+            ballotList.add(ballotRemain.getKey());
+            System.out.println("Page generated");
+        }
+
+        System.out.println("Total pages generated: " + ballotList.size());
+        return ballotList;
+    }
+
 }

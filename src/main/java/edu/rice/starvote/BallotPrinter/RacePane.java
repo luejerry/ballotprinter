@@ -12,13 +12,14 @@ public class RacePane extends HBox {
 
     private final List<VBox> columnList = new LinkedList<>();
 
-    public RacePane(int columns) {
+    public RacePane(int columns, double width, double height) {
         super();
         for (int i = 0; i < columns; i++) {
             final VBox column = new VBox();
             columnList.add(column);
             getChildren().add(column);
         }
+        setPrefSize(width, height);
     }
 
     @Override
