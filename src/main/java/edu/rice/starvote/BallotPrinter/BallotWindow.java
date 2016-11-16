@@ -56,6 +56,7 @@ public class BallotWindow {
                 update(prevButton, nextButton, pageLabel);
             }
         });
+
     }
 
     private void update(Button prevButton, Button nextButton, Label pageLabel) {

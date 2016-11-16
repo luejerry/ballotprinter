@@ -6,6 +6,7 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.ObservableSet;
 import javafx.concurrent.Task;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
 import javafx.print.*;
 import javafx.scene.Node;
@@ -148,6 +149,8 @@ public class PrinterPane {
     }
 
     public void print(Node node, Printer printer, Stage owner) {
+        node.setLayoutY(0);
+        node.setLayoutX(0);
         final PrinterJob job = PrinterJob.createPrinterJob(printer);
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
         final boolean accepted = job.showPrintDialog(owner);
@@ -183,11 +186,12 @@ public class PrinterPane {
     }
 
     private List<BallotPage> generateBallot(LoaderPane.Selections selection) throws IOException {
+        final Image barcodeImage = selection.barcodeIsPath ? new Image("file:" + selection.barcodePath) : SwingFXUtils.toFXImage(BarcodeTest.generateCode(selection.barcodePath), null);
         final HBox header = Ballots.createHeader(selection.title,
                 selection.subtitle,
                 selection.instructions,
-                new Image("file:" + selection.barcodePath));
-        final HBox footer = Ballots.createFooter(new Image("file:" + selection.barcodePath));
+                barcodeImage);
+        final HBox footer = Ballots.createFooter(barcodeImage);
         final Path jsonPath = Paths.get(selection.jsonPath);
         final BufferedReader jsonReader = Files.newBufferedReader(jsonPath);
         final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(jsonReader));
@@ -202,8 +206,8 @@ public class PrinterPane {
             final HBox nextHeader = Ballots.createHeader(selection.title,
                     selection.subtitle,
                     selection.instructions,
-                    new Image("file:" + selection.barcodePath));
-            final HBox nextFooter = Ballots.createFooter(new Image("file:" + selection.barcodePath));
+                    barcodeImage);
+            final HBox nextFooter = Ballots.createFooter(barcodeImage);
             ballotRemain = Ballots.createBallot(printableX, printableY, 3, nextHeader, nextFooter, ballotRemain.getValue());
             ballotList.add(ballotRemain.getKey());
             System.out.println("Page generated");

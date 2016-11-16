@@ -2,10 +2,7 @@ package edu.rice.starvote.BallotPrinter;
 
 import javafx.event.ActionEvent;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -24,6 +21,9 @@ public class LoaderPane {
     private final TextArea instructionsText;
     private final TextField barcodeField;
     private final TextField jsonField;
+    private final RadioButton textcodeRadio;
+    private final RadioButton filecodeRadio;
+    private final ToggleGroup barcodeToggleGroup;
 
     public LoaderPane() {
         titleText = new TextArea("Official Ballot");
@@ -31,10 +31,15 @@ public class LoaderPane {
         instructionsText = new TextArea("PLACE THIS IN BALLOT BOX");
         barcodeField = new TextField();
         jsonField = new TextField();
+        textcodeRadio = new RadioButton("Text");
+        filecodeRadio = new RadioButton("From file");
+        barcodeToggleGroup = new ToggleGroup();
+
         initWindow();
     }
 
     private void initWindow() {
+
         final Label titleLabel = new Label("Title");
         final Label subtitleLabel = new Label("Subtitle");
         final Label instructionsLabel = new Label("Instructions");
@@ -42,6 +47,13 @@ public class LoaderPane {
         final Label jsonLabel = new Label("Ballot selection JSON");
         final Button barcodeButton = new Button("Open file...");
         final Button jsonButton = new Button("Open file...");
+        final HBox barcodeContainer = new HBox();
+
+        textcodeRadio.setToggleGroup(barcodeToggleGroup);
+        filecodeRadio.setToggleGroup(barcodeToggleGroup);
+        barcodeToggleGroup.selectToggle(textcodeRadio);
+
+        barcodeContainer.getChildren().addAll(textcodeRadio, filecodeRadio, barcodeField);
 
         GridPane.setConstraints(titleLabel, 1, 1);
         GridPane.setConstraints(subtitleLabel, 1, 2);
@@ -51,7 +63,7 @@ public class LoaderPane {
         GridPane.setConstraints(titleText, 2, 1, GridPane.REMAINING, 1);
         GridPane.setConstraints(subtitleText, 2, 2, GridPane.REMAINING, 1);
         GridPane.setConstraints(instructionsText, 2, 3, GridPane.REMAINING, 1);
-        GridPane.setConstraints(barcodeField, 2, 4);
+        GridPane.setConstraints(barcodeContainer, 2, 4);
         GridPane.setConstraints(jsonField, 2, 5);
         GridPane.setConstraints(barcodeButton, 3, 4);
         GridPane.setConstraints(jsonButton, 3, 5);
@@ -60,7 +72,7 @@ public class LoaderPane {
         window.getChildren().addAll(titleLabel, titleText,
                 subtitleLabel, subtitleText,
                 instructionsLabel, instructionsText,
-                barcodeLabel, barcodeField, barcodeButton,
+                barcodeLabel, barcodeContainer, barcodeButton,
                 jsonLabel, jsonField, jsonButton);
 
         barcodeButton.addEventHandler(ActionEvent.ACTION, event -> {
@@ -95,6 +107,7 @@ public class LoaderPane {
                 subtitleText.getText(),
                 instructionsText.getText(),
                 barcodeField.getText(),
+                barcodeToggleGroup.getSelectedToggle() == filecodeRadio,
                 jsonField.getText());
     }
 
@@ -103,13 +116,19 @@ public class LoaderPane {
         public String subtitle;
         public String instructions;
         public String barcodePath;
+        public boolean barcodeIsPath;
         public String jsonPath;
 
-        public Selections(String title, String subtitle, String instructions, String barcodePath, String jsonPath) {
+        public Selections(String title,
+                          String subtitle,
+                          String instructions,
+                          String barcodePath, boolean barcodeIsPath,
+                          String jsonPath) {
             this.title = title;
             this.subtitle = subtitle;
             this.instructions = instructions;
             this.barcodePath = barcodePath;
+            this.barcodeIsPath = barcodeIsPath;
             this.jsonPath = jsonPath;
         }
     }
