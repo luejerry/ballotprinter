@@ -22,6 +22,13 @@ public class BallotParser {
         return raceList;
     }
 
+    public static Collection<RaceData> parseJson(String json) {
+        final RaceData[] raceData = gson.fromJson(json, RaceData[].class);
+        final LinkedList<RaceData> raceList = new LinkedList<>();
+        Collections.addAll(raceList, raceData);
+        return raceList;
+    }
+
     public static Collection<RaceContainer> generateRaceContainers(Collection<RaceData> raceList) {
         return raceList.stream()
                 .map((raceData) ->

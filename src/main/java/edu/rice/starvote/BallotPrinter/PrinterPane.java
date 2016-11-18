@@ -13,9 +13,11 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.*;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.Callback;
 import javafx.util.Pair;
 
 import java.io.BufferedReader;
@@ -53,7 +55,7 @@ public class PrinterPane {
     private void initWindow() {
         final ListView<Printer> printerListView = new ListView<>(printerlist);
         final Button printButton = new Button("Print");
-        final Button dimButton = new Button("Dimensions");
+        final Button dimButton = new Button("Initialize Ballot");
         final Button ballotButton = new Button("Show Ballot");
         final TextArea textArea = new TextArea();
         final LoaderDialog loaderDialog = new LoaderDialog(new LoaderPane());
@@ -77,12 +79,16 @@ public class PrinterPane {
                 ballotPages.clear();
                 try {
                     ballotPages = generateBallot(selection);
+                    ballotButton.setDisable(false);
+                    printButton.setDisable(false);
                 } catch (IOException e) {
                     e.printStackTrace();
                     final Dialog errorDialog = new Dialog();
                     errorDialog.setContentText("Error loading chosen file!");
                     errorDialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK);
                     errorDialog.show();
+                    ballotButton.setDisable(true);
+                    printButton.setDisable(true);
                 }
             });
 
@@ -90,6 +96,13 @@ public class PrinterPane {
         ballotButton.addEventHandler(ActionEvent.ACTION, event -> {
             showBallot();
         });
+        printerListView.setCellFactory(param -> new ListCell<Printer>() {
+                    @Override
+                    protected void updateItem(Printer item, boolean empty) {
+                        super.updateItem(item, empty);
+                        setText(item == null ? "" : item.getName());
+                    }
+                });
         printerListView.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> {
                     final Task<String> infoTask = new Task<String>() {
@@ -102,9 +115,7 @@ public class PrinterPane {
                     printerInfo.bind(infoTask.valueProperty());
                     textArea.setText("Getting printer information...");
                     worker.submit(infoTask);
-                    printButton.setDisable(false);
                     dimButton.setDisable(false);
-                    ballotButton.setDisable(false);
                 }
         );
         printerInfo.addListener((observable, oldValue, newValue) -> {
@@ -151,6 +162,8 @@ public class PrinterPane {
     public void print(Node node, Printer printer, Stage owner) {
         node.setLayoutY(0);
         node.setLayoutX(0);
+        node.applyCss();
+        node.autosize();
         final PrinterJob job = PrinterJob.createPrinterJob(printer);
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
         final boolean accepted = job.showPrintDialog(owner);
@@ -162,6 +175,24 @@ public class PrinterPane {
         }
     }
 
+    public void printPages(Collection<Node> nodes, Printer printer, Stage owner) {
+        final PrinterJob job = PrinterJob.createPrinterJob(printer);
+        final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
+        nodes.forEach(node -> {
+            node.setLayoutX(0);
+            node.setLayoutY(0);
+            node.applyCss();
+            node.autosize();
+            final boolean printed = job.printPage(layout, node);
+            if (!printed) {
+                System.err.println("Printing failed with status: " + job.getJobStatus());
+            } else {
+                System.out.println("Page spooled");
+            }
+        });
+        job.endJob();
+    }
+
     public void showBallot() {
 //        final BorderPane testBallot = generateBallot();
         final BallotWindow ballotWindow = new BallotWindow(ballotPages);
@@ -170,6 +201,9 @@ public class PrinterPane {
         stage.setScene(scene);
         stage.initModality(Modality.APPLICATION_MODAL);
         stage.setTitle("Ballot Preview");
+        stage.setOnCloseRequest(event -> {
+            ballotWindow.getPane().getChildren().clear();
+        });
         stage.showAndWait();
         scene.setRoot(new Region());
     }
@@ -187,14 +221,22 @@ public class PrinterPane {
 
     private List<BallotPage> generateBallot(LoaderPane.Selections selection) throws IOException {
         final Image barcodeImage = selection.barcodeIsPath ? new Image("file:" + selection.barcodePath) : SwingFXUtils.toFXImage(BarcodeTest.generateCode(selection.barcodePath), null);
-        final HBox header = Ballots.createHeader(selection.title,
-                selection.subtitle,
-                selection.instructions,
-                barcodeImage);
-        final HBox footer = Ballots.createFooter(barcodeImage);
+        final String title = selection.title;
+        final String subtitle = selection.subtitle;
+        final String instructions = selection.instructions;
         final Path jsonPath = Paths.get(selection.jsonPath);
         final BufferedReader jsonReader = Files.newBufferedReader(jsonPath);
         final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(jsonReader));
+
+        return generatePage(barcodeImage, title, subtitle, instructions, raceContainers);
+    }
+
+    private List<BallotPage> generatePage(Image barcodeImage, String title, String subtitle, String instructions, Collection<RaceContainer> raceContainers) {
+        final HBox header = Ballots.createHeader(title,
+                subtitle,
+                instructions,
+                barcodeImage);
+        final HBox footer = Ballots.createFooter(barcodeImage);
 
         Pair<BallotPage, Queue<RaceContainer>> ballotRemain = Ballots.createBallot(printableX, printableY, 3, header, footer, raceContainers);
         final List<BallotPage> ballotList = new LinkedList<>();
@@ -203,9 +245,9 @@ public class PrinterPane {
         System.out.println("Page generated");
 
         while (!ballotRemain.getValue().isEmpty()) {
-            final HBox nextHeader = Ballots.createHeader(selection.title,
-                    selection.subtitle,
-                    selection.instructions,
+            final HBox nextHeader = Ballots.createHeader(title,
+                    subtitle,
+                    instructions,
                     barcodeImage);
             final HBox nextFooter = Ballots.createFooter(barcodeImage);
             ballotRemain = Ballots.createBallot(printableX, printableY, 3, nextHeader, nextFooter, ballotRemain.getValue());
@@ -215,6 +257,20 @@ public class PrinterPane {
 
         System.out.println("Total pages generated: " + ballotList.size());
         return ballotList;
+    }
+
+    private List<BallotPage> generateBallot(WebData data) {
+        final WritableImage barcode = SwingFXUtils.toFXImage(BarcodeTest.generateCode(data.barcode), null);
+        final String title = data.title;
+        final String subtitle = data.subtitle;
+        final String instructions = data.instructions;
+        final HBox header = Ballots.createHeader(title, subtitle, instructions, barcode);
+        final HBox footer = Ballots.createFooter(barcode);
+        final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(data.json));
+
+        System.out.println("Ballot generation request from webdata");
+
+        return generatePage(barcode, title, subtitle, instructions, raceContainers);
     }
 
 }
