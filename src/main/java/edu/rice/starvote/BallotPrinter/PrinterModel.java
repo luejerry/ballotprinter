@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,6 +46,7 @@ public class PrinterModel {
     }
 
     private Printer currentPrinter;
+    private PrintStream userLogger = System.out;
 
     public void setBallotPages(List<BallotPage> ballotPages) {
         this.ballotPages = ballotPages;
@@ -51,12 +54,16 @@ public class PrinterModel {
 
     public PrinterModel() { }
 
+    public void setUserLogger(PrintStream userLogger) {
+        this.userLogger = userLogger;
+    }
+
     String info(Printer printer) {
         final StringBuilder buffer = new StringBuilder(64);
+        log.debug("Print query running on: {}", Thread.currentThread());
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
         currentPrinter = printer;
-        log.debug("Print query running on: {}", Thread.currentThread());
-//        System.out.println("Print query running on: " + Thread.currentThread());
+        userLogger.println("Print query running on: " + Thread.currentThread());
         printableX = layout.getPrintableWidth();
         printableY = layout.getPrintableHeight();
         buffer.append("Left margin: ").append(layout.getLeftMargin())
@@ -89,6 +96,7 @@ public class PrinterModel {
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
 //        System.out.println("Print job spooling " + nodes.size() + " pages");
         log.info("Print job spooling {} pages", nodes.size());
+        userLogger.format("Print job spooling %d pages\n", nodes.size());
         nodes.forEach(node -> {
             node.setLayoutX(0);
             node.setLayoutY(0);
@@ -97,12 +105,14 @@ public class PrinterModel {
             final boolean printed = job.printPage(layout, node);
             if (!printed) {
                 log.error("Printing failed with status: {}", job.getJobStatus());
+                userLogger.format("Printing failed with status: %s\n", job.getJobStatus());
 //                System.err.println("Printing failed with status: " + job.getJobStatus());
             } else {
                 log.info("Page spooled");
 //                System.out.println("Page spooled");
             }
         });
+        userLogger.println("Print job spooled successfully");
         job.endJob();
     }
 
@@ -146,6 +156,7 @@ public class PrinterModel {
 
 //        System.out.println("Total pages generated: " + ballotList.size());
         log.info("Total pages generated: {}", ballotList.size());
+        userLogger.format("Pages generated: %d\n", ballotList.size());
         return ballotList;
     }
 
@@ -159,6 +170,7 @@ public class PrinterModel {
         final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(data.json));
 
         log.debug("Ballot generation request from webdata");
+        userLogger.println("Generating ballot from network request");
 //        System.out.println("Ballot generation request from webdata");
 
         return generatePages(barcode, title, subtitle, instructions, raceContainers);
@@ -166,6 +178,10 @@ public class PrinterModel {
 
     public Printer getCurrentPrinter() {
         return currentPrinter;
+    }
+
+    public void setToDefaultPrinter() {
+        currentPrinter = Printer.getDefaultPrinter();
     }
 
     public void printFromWeb(WebData data) {

@@ -31,6 +31,8 @@ public class PrintServer {
     private String lastJSON;
 
     private final PrinterModel printerModel;
+
+    private static final Gson gson = new Gson();
     private static final Logger log = LoggerFactory.getLogger(PrintServer.class);
 
     public PrintServer(PrinterModel printerModel) {
@@ -39,7 +41,6 @@ public class PrintServer {
 
     void initRoutes() {
         Spark.port(8888);
-        final Gson gson = new Gson();
         final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd@kk.mm.ss");
         Spark.post("/", (request, response) -> {
             final String host = request.host();
@@ -50,6 +51,8 @@ public class PrintServer {
             log.info("Content-Type: {}", type);
 //            System.out.println("Content-Type: " + type);
             final String body = request.body();
+//            System.out.println(body);
+            log.debug("Body: {}", body);
             try {
                 gson.fromJson(body, RaceData[].class);
                 lastJSON = body;
