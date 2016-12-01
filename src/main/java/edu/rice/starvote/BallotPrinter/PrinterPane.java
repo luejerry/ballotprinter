@@ -2,6 +2,7 @@ package edu.rice.starvote.BallotPrinter;
 
 import com.google.gson.JsonIOException;
 import com.google.gson.JsonSyntaxException;
+import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 import javafx.collections.FXCollections;
@@ -9,15 +10,26 @@ import javafx.collections.ObservableList;
 import javafx.collections.ObservableSet;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
-import javafx.print.*;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.print.Printer;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.Region;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.util.StringConverter;
 
 import java.io.IOException;
-import java.util.*;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -33,39 +45,72 @@ public class PrinterPane {
     private StringProperty printerInfo = new SimpleStringProperty();
     private final ExecutorService worker = Executors.newFixedThreadPool(2);
     private final GridPane window = new GridPane();
+    private final PrintStream userLogger;
+    private final TextArea logText = new TextArea();
 
-    public PrinterPane(PrinterModel printerModel) {
+    public PrinterPane(PrinterModel printerModel, PrintStream userLogger) {
         final ObservableSet<Printer> allPrinters = Printer.getAllPrinters();
-        final List<Printer> printers = allPrinters.stream().collect(Collectors.toList());
+        final List<Printer> printers = new ArrayList<>(allPrinters);
         printerlist = FXCollections.observableList(printers);
         initWindow();
         this.printerModel = printerModel;
+        this.userLogger = userLogger;
+    }
+
+    public PrinterPane(PrinterModel printerModel) {
+        final ObservableSet<Printer> allPrinters = Printer.getAllPrinters();
+        final List<Printer> printers = new ArrayList<>(allPrinters);
+        printerlist = FXCollections.observableList(printers);
+        initWindow();
+        this.printerModel = printerModel;
+        this.userLogger = new PrintStream(new OutputStream() {
+            @Override
+            public void write(int b) throws IOException {
+                Platform.runLater(() -> {
+                    logText.appendText(String.valueOf((char) b));
+                });
+            }
+        });
     }
 
     private void initWindow() {
-        final ListView<Printer> printerListView = new ListView<>(printerlist);
+        final ChoiceBox<Printer> printerDropdown = new ChoiceBox<>(printerlist);
         final Button printButton = new Button("Print");
-        final Button dimButton = new Button("Initialize Ballot");
+        final Button initButton = new Button("Initialize Ballot");
         final Button ballotButton = new Button("Show Ballot");
-        final TextArea textArea = new TextArea();
+        final TitledPane testPane = new TitledPane("Test ballot", new HBox(10, initButton, ballotButton, printButton));
+        final TextArea infoText = new TextArea();
+        final TitledPane infoPane = new TitledPane("Printer information", infoText);
         final LoaderDialog loaderDialog = new LoaderDialog(new LoaderPane());
+        final Label printLabel = new Label("Select printer:");
+        final HBox printContainer = new HBox(printLabel, printerDropdown);
+        final TitledPane logPane = new TitledPane("Log", logText);
+
+        infoPane.setCollapsible(false);
+        testPane.setCollapsible(false);
+        window.setHgap(10);
+        window.setVgap(10);
+        window.setPadding(new Insets(0, 10, 10, 0));
+        printContainer.setAlignment(Pos.BASELINE_LEFT);
+        printContainer.setSpacing(10);
+        logText.setWrapText(true);
 
         printButton.setDisable(true);
-        dimButton.setDisable(true);
+        initButton.setDisable(true);
         ballotButton.setDisable(true);
 
         printButton.addEventHandler(ActionEvent.ACTION, event -> {
             final BallotPage ballot = printerModel.getBallotPages().get(0);
-            printerModel.print(ballot, printerListView.getSelectionModel().getSelectedItem(), null);
+            printerModel.print(ballot, printerDropdown.getSelectionModel().getSelectedItem(), null);
         });
-        dimButton.addEventHandler(ActionEvent.ACTION, event -> {
+        initButton.addEventHandler(ActionEvent.ACTION, event -> {
             final Optional<LoaderPane.Selections> oSelection = loaderDialog.getDialog().showAndWait();
             oSelection.ifPresent(selection -> {
-                System.out.println(selection.title);
-                System.out.println(selection.subtitle);
-                System.out.println(selection.instructions);
-                System.out.println(selection.barcodePath);
-                System.out.println(selection.jsonPath);
+                userLogger.println(selection.title);
+                userLogger.println(selection.subtitle);
+                userLogger.println(selection.instructions);
+                userLogger.println(selection.barcodePath);
+                userLogger.println(selection.jsonPath);
                 printerModel.getBallotPages().clear();
                 try {
                     printerModel.setBallotPages(printerModel.generateBallot(selection));
@@ -93,14 +138,18 @@ public class PrinterPane {
         ballotButton.addEventHandler(ActionEvent.ACTION, event -> {
             showBallot();
         });
-        printerListView.setCellFactory(param -> new ListCell<Printer>() {
-                    @Override
-                    protected void updateItem(Printer item, boolean empty) {
-                        super.updateItem(item, empty);
-                        setText(item == null ? "" : item.getName());
-                    }
-                });
-        printerListView.getSelectionModel().selectedItemProperty().addListener(
+        printerDropdown.setConverter(new StringConverter<Printer>() {
+            @Override
+            public String toString(Printer object) {
+                return object == null ? "" : object.getName();
+            }
+
+            @Override
+            public Printer fromString(String string) {
+                return printerlist.filtered(printer -> printer.getName().equals(string)).get(0);
+            }
+        });
+        printerDropdown.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> {
                     final Task<String> infoTask = new Task<String>() {
 
@@ -110,21 +159,20 @@ public class PrinterPane {
                         }
                     };
                     printerInfo.bind(infoTask.valueProperty());
-                    textArea.setText("Getting printer information...");
+                    infoText.setText("Getting printer information...");
                     worker.submit(infoTask);
-                    dimButton.setDisable(false);
+                    initButton.setDisable(false);
                 }
         );
         printerInfo.addListener((observable, oldValue, newValue) -> {
-            textArea.setText(newValue);
+            infoText.setText(newValue);
         });
 
-        GridPane.setConstraints(printerListView, 1, 1, 3, 1);
-        GridPane.setConstraints(printButton, 1, 2);
-        GridPane.setConstraints(dimButton, 2, 2);
-        GridPane.setConstraints(ballotButton, 3, 2);
-        GridPane.setConstraints(textArea, 1, 3, 3, 1);
-        window.getChildren().addAll(printerListView, printButton, dimButton, ballotButton, textArea);
+        GridPane.setConstraints(printContainer, 1, 1, 1, 1);
+        GridPane.setConstraints(testPane, 1, 2, 1, 1);
+        GridPane.setConstraints(infoPane, 1, 3, 1, 1);
+        GridPane.setConstraints(logPane, 1, 4, 1, 1);
+        window.getChildren().addAll(printContainer, testPane, infoPane, logPane);
     }
 
     public Pane getPane() {
@@ -154,6 +202,10 @@ public class PrinterPane {
         });
         stage.showAndWait();
         scene.setRoot(new Region());
+    }
+
+    public PrintStream getLoggerStream() {
+        return userLogger;
     }
 
 }

@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import spark.Spark;
 
 import java.io.BufferedWriter;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -28,9 +29,12 @@ public class PrintServer {
     static final String INSTRUCTIONS = "PLACE THIS IN BALLOT BOX";
     static final String BARCODE = "ASDF-asdf-1234";
 
+    static final int PORT = 8888;
+
     private String lastJSON;
 
     private final PrinterModel printerModel;
+    private PrintStream userLogger = System.out;
 
     private static final Gson gson = new Gson();
     private static final Logger log = LoggerFactory.getLogger(PrintServer.class);
@@ -40,7 +44,7 @@ public class PrintServer {
     }
 
     void initRoutes() {
-        Spark.port(8888);
+        Spark.port(PORT);
         final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd@kk.mm.ss");
         Spark.post("/", (request, response) -> {
             final String host = request.host();
@@ -59,9 +63,11 @@ public class PrintServer {
                 final WebData webData = new WebData(TITLE, SUBTITLE, INSTRUCTIONS, BARCODE, body);
                 printerModel.printFromWeb(webData);
                 response.status(201); // resource created
+                userLogger.format("Received print job from %s (%s)\n", host, ip);
             } catch (JsonSyntaxException e) {
 //                System.out.println("Error: unexpected content in POST body. Ignoring request.");
                 log.error("Error: unexpected content in POST body. Ignoring request.");
+                userLogger.format("Error: received unrecognized request from %s (%s)\n", host, ip);
                 response.status(400); // bad request
             }
             return response;
@@ -79,6 +85,7 @@ public class PrintServer {
             bufferedWriter.write(body);
             bufferedWriter.close();
             log.info("Report written to {}", file.toAbsolutePath().toString());
+            userLogger.format("Report generated at %s\n", file.toAbsolutePath().toString());
             response.status(201);
             return response;
         }));
@@ -92,6 +99,7 @@ public class PrintServer {
             response.status(200);
             return response;
         });
+        userLogger.format("Print server listening on port %d\n", PORT);
     }
 
     public void start() {
@@ -100,5 +108,9 @@ public class PrintServer {
 
     public void stop() {
         Spark.stop();
+    }
+
+    public void setUserLogger(PrintStream userLogger) {
+        this.userLogger = userLogger;
     }
 }

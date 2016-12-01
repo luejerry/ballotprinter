@@ -49,11 +49,20 @@ public class LoaderPane {
         final Button jsonButton = new Button("Open file...");
         final HBox barcodeContainer = new HBox();
 
+        window.setVgap(10);
+        window.setHgap(10);
+
         textcodeRadio.setToggleGroup(barcodeToggleGroup);
         filecodeRadio.setToggleGroup(barcodeToggleGroup);
         barcodeToggleGroup.selectToggle(textcodeRadio);
 
+        barcodeContainer.setSpacing(10);
+        barcodeContainer.setAlignment(Pos.BASELINE_LEFT);
         barcodeContainer.getChildren().addAll(textcodeRadio, filecodeRadio, barcodeField);
+
+        titleText.setPrefRowCount(2);
+        subtitleText.setPrefRowCount(2);
+        instructionsText.setPrefRowCount(2);
 
         GridPane.setConstraints(titleLabel, 1, 1);
         GridPane.setConstraints(subtitleLabel, 1, 2);

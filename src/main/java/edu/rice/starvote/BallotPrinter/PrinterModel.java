@@ -26,33 +26,21 @@ import java.util.Queue;
 public class PrinterModel {
 
     private final static Logger log = LoggerFactory.getLogger(PrinterModel.class);
+    private double printableX;
+    private double printableY;
+    private List<BallotPage> ballotPages = new LinkedList<>();
+    private Printer currentPrinter;
+    private PrintStream userLogger = System.out;
 
-    double printableX;
-
-    public double getPrintableX() {
-        return printableX;
-    }
-
-    double printableY;
-
-    public double getPrintableY() {
-        return printableY;
-    }
-
-    List<BallotPage> ballotPages = new LinkedList<>();
+    public PrinterModel() { }
 
     public List<BallotPage> getBallotPages() {
         return ballotPages;
     }
 
-    private Printer currentPrinter;
-    private PrintStream userLogger = System.out;
-
     public void setBallotPages(List<BallotPage> ballotPages) {
         this.ballotPages = ballotPages;
     }
-
-    public PrinterModel() { }
 
     public void setUserLogger(PrintStream userLogger) {
         this.userLogger = userLogger;
@@ -63,7 +51,6 @@ public class PrinterModel {
         log.debug("Print query running on: {}", Thread.currentThread());
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
         currentPrinter = printer;
-        userLogger.println("Print query running on: " + Thread.currentThread());
         printableX = layout.getPrintableWidth();
         printableY = layout.getPrintableHeight();
         buffer.append("Left margin: ").append(layout.getLeftMargin())
@@ -72,6 +59,7 @@ public class PrinterModel {
                 .append("\nBottom margin: ").append(layout.getBottomMargin())
                 .append("\nPrintable width: ").append(layout.getPrintableWidth())
                 .append("\nPrintable height: ").append(layout.getPrintableHeight());
+        userLogger.format("Future jobs will print using: %s\n", currentPrinter.getName());
         return buffer.toString();
     }
 
@@ -95,7 +83,7 @@ public class PrinterModel {
         final PrinterJob job = PrinterJob.createPrinterJob(printer);
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
 //        System.out.println("Print job spooling " + nodes.size() + " pages");
-        log.info("Print job spooling {} pages", nodes.size());
+        log.info("Print job spooling {} pages...", nodes.size());
         userLogger.format("Print job spooling %d pages\n", nodes.size());
         nodes.forEach(node -> {
             node.setLayoutX(0);
@@ -112,8 +100,11 @@ public class PrinterModel {
 //                System.out.println("Page spooled");
             }
         });
-        userLogger.println("Print job spooled successfully");
-        job.endJob();
+
+        if (job.endJob()) {
+            log.info("Print job completed");
+            userLogger.println("Print job sent to printer");
+        }
     }
 
     List<BallotPage> generateBallot(LoaderPane.Selections selection) throws IOException {
@@ -170,7 +161,6 @@ public class PrinterModel {
         final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(data.json));
 
         log.debug("Ballot generation request from webdata");
-        userLogger.println("Generating ballot from network request");
 //        System.out.println("Ballot generation request from webdata");
 
         return generatePages(barcode, title, subtitle, instructions, raceContainers);

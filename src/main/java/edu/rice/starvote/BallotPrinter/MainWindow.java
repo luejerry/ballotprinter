@@ -19,16 +19,18 @@ public class MainWindow extends Application {
         super.init();
         printerModel = new PrinterModel();
         printServer = new PrintServer(printerModel);
-        printServer.start();
     }
 
     @Override
     public void start(Stage primaryStage) throws Exception {
         printerPane = new PrinterPane(printerModel);
+        printerModel.setUserLogger(printerPane.getLoggerStream());
+        printServer.setUserLogger(printerPane.getLoggerStream());
+        printServer.start();
         final Pane window = printerPane.getPane();
         final Scene scene = new Scene(window);
         primaryStage.setScene(scene);
-        primaryStage.setTitle("Print test");
+        primaryStage.setTitle("STAR-Vote Print Server");
         primaryStage.show();
     }
 
