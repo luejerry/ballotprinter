@@ -40,4 +40,8 @@ public class MainWindow extends Application {
         printServer.stop();
         printerPane.shutdown();
     }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
 }

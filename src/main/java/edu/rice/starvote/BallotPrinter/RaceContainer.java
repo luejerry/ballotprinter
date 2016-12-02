@@ -12,6 +12,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.transform.Scale;
 import javafx.util.Pair;
 
 /**
@@ -57,6 +58,13 @@ public class RaceContainer extends GridPane {
             getChildren().addAll(raceLabel, spacer, lowerLine);
         }
         setPadding(new Insets(4, 7, 4, 7));
+    }
+
+    public void setTextScale(double scale) {
+        getChildren().forEach((node) -> {
+            final Scale scaleTransform = new Scale(scale, scale);
+            node.getTransforms().add(scaleTransform);
+        });
     }
 
     public Pair<Double, Double> calculateSize(double maxWidth) {

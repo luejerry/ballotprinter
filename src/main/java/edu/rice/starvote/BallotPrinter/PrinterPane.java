@@ -61,7 +61,6 @@ public class PrinterPane {
         final ObservableSet<Printer> allPrinters = Printer.getAllPrinters();
         final List<Printer> printers = new ArrayList<>(allPrinters);
         printerlist = FXCollections.observableList(printers);
-        initWindow();
         this.printerModel = printerModel;
         this.userLogger = new PrintStream(new OutputStream() {
             @Override
@@ -71,6 +70,7 @@ public class PrinterPane {
                 });
             }
         });
+        initWindow();
     }
 
     private void initWindow() {
@@ -85,6 +85,10 @@ public class PrinterPane {
         final Label printLabel = new Label("Select printer:");
         final HBox printContainer = new HBox(printLabel, printerDropdown);
         final TitledPane logPane = new TitledPane("Log", logText);
+        final Label columnLabel = new Label("Number of columns: ");
+        final Slider columnSlider = new Slider(1, 4, 3);
+        final HBox columnContainer = new HBox(10, columnLabel, columnSlider);
+        final TitledPane settingsPane = new TitledPane("Ballot settings", columnContainer);
 
         infoPane.setCollapsible(false);
         testPane.setCollapsible(false);
@@ -106,11 +110,11 @@ public class PrinterPane {
         initButton.addEventHandler(ActionEvent.ACTION, event -> {
             final Optional<LoaderPane.Selections> oSelection = loaderDialog.getDialog().showAndWait();
             oSelection.ifPresent(selection -> {
-                userLogger.println(selection.title);
-                userLogger.println(selection.subtitle);
-                userLogger.println(selection.instructions);
-                userLogger.println(selection.barcodePath);
-                userLogger.println(selection.jsonPath);
+//                userLogger.println(selection.title);
+//                userLogger.println(selection.subtitle);
+//                userLogger.println(selection.instructions);
+//                userLogger.println(selection.barcodePath);
+//                userLogger.println(selection.jsonPath);
                 printerModel.getBallotPages().clear();
                 try {
                     printerModel.setBallotPages(printerModel.generateBallot(selection));
@@ -168,11 +172,21 @@ public class PrinterPane {
             infoText.setText(newValue);
         });
 
+        columnSlider.setMajorTickUnit(1);
+        columnSlider.setMinorTickCount(0);
+        columnSlider.setShowTickLabels(true);
+        columnSlider.setSnapToTicks(true);
+        columnSlider.setBlockIncrement(1);
+
+        printerModel.getColumnsProperty().bind(columnSlider.valueProperty());
+
+        printerModel.getPrinterProperty().bind(printerDropdown.valueProperty());
         GridPane.setConstraints(printContainer, 1, 1, 1, 1);
-        GridPane.setConstraints(testPane, 1, 2, 1, 1);
-        GridPane.setConstraints(infoPane, 1, 3, 1, 1);
-        GridPane.setConstraints(logPane, 1, 4, 1, 1);
-        window.getChildren().addAll(printContainer, testPane, infoPane, logPane);
+        GridPane.setConstraints(settingsPane, 1, 2, 1, 1);
+        GridPane.setConstraints(testPane, 1, 3, 1, 1);
+        GridPane.setConstraints(infoPane, 1, 4, 1, 1);
+        GridPane.setConstraints(logPane, 1, 5, 1, 1);
+        window.getChildren().addAll(printContainer, testPane, infoPane, logPane, settingsPane);
     }
 
     public Pane getPane() {

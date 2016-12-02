@@ -1,5 +1,9 @@
 package edu.rice.starvote.BallotPrinter;
 
+import javafx.beans.property.IntegerProperty;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.beans.property.SimpleObjectProperty;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.print.*;
 import javafx.scene.Node;
@@ -13,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,13 +32,25 @@ public class PrinterModel {
     private double printableX;
     private double printableY;
     private List<BallotPage> ballotPages = new LinkedList<>();
-    private Printer currentPrinter;
+    private ObjectProperty<Printer> printerProperty = new SimpleObjectProperty<>();
+    private IntegerProperty columnsProperty = new SimpleIntegerProperty();
     private PrintStream userLogger = System.out;
 
-    public PrinterModel() { }
+    public PrinterModel() {
+        printerProperty.addListener((observable, oldValue, newValue) ->
+                userLogger.format("Future jobs will print using: %s\n", newValue.getName()));
+    }
 
     public List<BallotPage> getBallotPages() {
         return ballotPages;
+    }
+
+    ObjectProperty<Printer> getPrinterProperty() {
+        return printerProperty;
+    }
+
+    IntegerProperty getColumnsProperty() {
+        return columnsProperty;
     }
 
     public void setBallotPages(List<BallotPage> ballotPages) {
@@ -50,7 +65,6 @@ public class PrinterModel {
         final StringBuilder buffer = new StringBuilder(64);
         log.debug("Print query running on: {}", Thread.currentThread());
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
-        currentPrinter = printer;
         printableX = layout.getPrintableWidth();
         printableY = layout.getPrintableHeight();
         buffer.append("Left margin: ").append(layout.getLeftMargin())
@@ -59,7 +73,6 @@ public class PrinterModel {
                 .append("\nBottom margin: ").append(layout.getBottomMargin())
                 .append("\nPrintable width: ").append(layout.getPrintableWidth())
                 .append("\nPrintable height: ").append(layout.getPrintableHeight());
-        userLogger.format("Future jobs will print using: %s\n", currentPrinter.getName());
         return buffer.toString();
     }
 
@@ -82,7 +95,6 @@ public class PrinterModel {
     public void printPages(Collection<? extends Node> nodes, Printer printer) {
         final PrinterJob job = PrinterJob.createPrinterJob(printer);
         final PageLayout layout = printer.createPageLayout(Paper.NA_LETTER, PageOrientation.PORTRAIT, Printer.MarginType.HARDWARE_MINIMUM);
-//        System.out.println("Print job spooling " + nodes.size() + " pages");
         log.info("Print job spooling {} pages...", nodes.size());
         userLogger.format("Print job spooling %d pages\n", nodes.size());
         nodes.forEach(node -> {
@@ -94,10 +106,8 @@ public class PrinterModel {
             if (!printed) {
                 log.error("Printing failed with status: {}", job.getJobStatus());
                 userLogger.format("Printing failed with status: %s\n", job.getJobStatus());
-//                System.err.println("Printing failed with status: " + job.getJobStatus());
             } else {
                 log.info("Page spooled");
-//                System.out.println("Page spooled");
             }
         });
 
@@ -116,21 +126,20 @@ public class PrinterModel {
         final BufferedReader jsonReader = Files.newBufferedReader(jsonPath);
         final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(jsonReader));
 
-        return generatePages(barcodeImage, title, subtitle, instructions, raceContainers);
+        return generatePages(barcodeImage, title, subtitle, instructions, raceContainers, columnsProperty.get());
     }
 
-    private List<BallotPage> generatePages(Image barcodeImage, String title, String subtitle, String instructions, Collection<RaceContainer> raceContainers) {
+    private List<BallotPage> generatePages(Image barcodeImage, String title, String subtitle, String instructions, Collection<RaceContainer> raceContainers, int columns) {
         final HBox header = Ballots.createHeader(title,
                 subtitle,
                 instructions,
                 barcodeImage);
         final HBox footer = Ballots.createFooter(barcodeImage);
 
-        Pair<BallotPage, Queue<RaceContainer>> ballotRemain = Ballots.createBallot(printableX, printableY, 3, header, footer, raceContainers);
+        Pair<BallotPage, Queue<RaceContainer>> ballotRemain = Ballots.createBallot(printableX, printableY, columns, header, footer, raceContainers);
         final List<BallotPage> ballotList = new LinkedList<BallotPage>();
 
         ballotList.add(ballotRemain.getKey());
-//        System.out.println("Page generated");
         log.debug("Page generated");
 
         while (!ballotRemain.getValue().isEmpty()) {
@@ -139,13 +148,11 @@ public class PrinterModel {
                     instructions,
                     barcodeImage);
             final HBox nextFooter = Ballots.createFooter(barcodeImage);
-            ballotRemain = Ballots.createBallot(printableX, printableY, 3, nextHeader, nextFooter, ballotRemain.getValue());
+            ballotRemain = Ballots.createBallot(printableX, printableY, columns, nextHeader, nextFooter, ballotRemain.getValue());
             ballotList.add(ballotRemain.getKey());
-//            System.out.println("Page generated");
             log.debug("Page generated");
         }
 
-//        System.out.println("Total pages generated: " + ballotList.size());
         log.info("Total pages generated: {}", ballotList.size());
         userLogger.format("Pages generated: %d\n", ballotList.size());
         return ballotList;
@@ -161,17 +168,12 @@ public class PrinterModel {
         final Collection<RaceContainer> raceContainers = BallotParser.generateRaceContainers(BallotParser.parseJson(data.json));
 
         log.debug("Ballot generation request from webdata");
-//        System.out.println("Ballot generation request from webdata");
 
-        return generatePages(barcode, title, subtitle, instructions, raceContainers);
+        return generatePages(barcode, title, subtitle, instructions, raceContainers, 3);
     }
 
     public Printer getCurrentPrinter() {
-        return currentPrinter;
-    }
-
-    public void setToDefaultPrinter() {
-        currentPrinter = Printer.getDefaultPrinter();
+        return printerProperty.get();
     }
 
     public void printFromWeb(WebData data) {
